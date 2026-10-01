@@ -78,9 +78,6 @@ VALUES
 ('C044','Aria','Bangalore',1,'2026-04-22','Referral'),
 ('C045','Vihaan','Mumbai',1,'2026-03-09','Social');
 
-SELECT COUNT(*) AS total_customers
-FROM customers;
-
 
 INSERT INTO products
 (product_id, product_name, category, price)
@@ -101,9 +98,6 @@ VALUES
 ('P14','Charcoal Deodorant','PersonalCare',199.00),
 ('P15','Tea Tree Body Wash','PersonalCare',349.00),
 ('P16','Aloe Vera Gel','PersonalCare',199.00);
-
-SELECT COUNT(*) AS products
-FROM products;
 
 
 INSERT INTO orders
@@ -291,5 +285,4 @@ VALUES
 ('O0179','C010','P14','2026-05-06',2,20,'Card',1,0),
 ('O0180','C020','P11','2026-02-13',1,10,'COD',3,0);
 
-SELECT COUNT(*) AS total_orders
-FROM orders;
+
