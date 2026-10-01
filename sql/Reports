@@ -12,6 +12,7 @@ SELECT
 FROM orders o
 JOIN products p
     ON o.product_id = p.product_id;
+#Expected Answer - total_orders = 180, total_revenue = 99860.20, avg_order_value = 554.78
 
 b) COUNT(*) vs COUNT(column) - 
 SELECT
@@ -19,6 +20,7 @@ SELECT
     COUNT(rating) AS ratings_available,
     COUNT(*) - COUNT(rating) AS ratings_missing
 FROM orders;
+#Expected Answer - 180, 165, 15
 
 c) LEFT JOIN with a genuine zero-match row - 
 SELECT
@@ -29,6 +31,7 @@ WHERE c.customer_id NOT IN (
     SELECT DISTINCT customer_id
     FROM orders
 );
+#Expected Answer - C045, Vihaan
 
 
 d) GROUP BY + HAVING - 
@@ -51,6 +54,7 @@ HAVING ROUND(
     1
 ) > 20
 ORDER BY return_rate_pct DESC;
+#Expected Answer - Jaipur (19, 8, 42.1), Lucknow (49, 15, 30.6), Bangalore (33, 8, 24.2)
 
 
 e) Ranking with ORDER BY + LIMIT/OFFSET - 
@@ -76,6 +80,7 @@ ORDER BY
     total_spend DESC,
     c.customer_id ASC
 LIMIT 5;
+#Expected Answer - C043 Reyansh 12920.00, C026 Isha 8371.60, C008 Meera 4564.60, C011 Arjun 4111.00, C042 Sanya 3785.00
 
 
 f) Three-table JOIN with GROUP BY - 
@@ -96,17 +101,21 @@ JOIN customers c
     ON o.customer_id = c.customer_id
 GROUP BY p.category
 ORDER BY category_revenue DESC;
+#Expected Answer - Haircare (54, 44956.10), Skincare (60, 27346.00), Babycare (30, 16805.00), PersonalCare (36, 10753.10)
 
 
 g) LIKE pattern match -  
 SELECT COUNT(*) AS customer_count
 FROM customers
 WHERE name LIKE 'A%';
+#Expected Answer - exactly 10 rows.
 
 
 h) DISTINCT - 
 SELECT DISTINCT acquisition_source
 FROM customers;
+#Expected Answer - Ad, Organic, Referral, Social
+
 
 
 i) ALTER TABLE + UPDATE with CASE - 
@@ -123,6 +132,8 @@ SET SQL_SAFE_UPDATES = 1;
 SELECT loyalty_tier, COUNT(*) AS customer_count
 FROM customers
 GROUP BY loyalty_tier;
+#Expected Answer -  Gold, 28 
+                    Silver, 17
 
 
 
