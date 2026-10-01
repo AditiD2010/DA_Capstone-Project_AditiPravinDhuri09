@@ -1,1 +1,8 @@
+SELECT COUNT(*) AS total_customers
+FROM customers;
 
+SELECT COUNT(*) AS products
+FROM products;
+
+SELECT COUNT(*) AS total_orders
+FROM orders;
