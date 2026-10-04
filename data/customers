@@ -1,1 +1,3 @@
-
+import pandas as pd
+customers = pd.read_csv("customers csv file.csv")
+print("orders shape:", orders.shape)
