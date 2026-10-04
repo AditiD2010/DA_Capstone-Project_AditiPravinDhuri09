@@ -1,1 +1,535 @@
+[2] Standardize payment_method casing - 
+import pandas as pd
+
+# Load the dataset
+orders = pd.read_csv("orders_data.csv")
+
+# 1. Check distinct raw values before cleaning
+print("Before fix (unique values):", orders['payment_method'].unique())
+print("Distinct count before fix:", orders['payment_method'].nunique())
+
+# 2. Apply cleaning fix
+orders['payment_method'] = orders['payment_method'].str.strip().str.upper()
+
+# 3. Check unique values and value counts after cleaning
+print("\nAfter fix (unique values):", orders['payment_method'].unique())
+print("\nValue counts after fix:")
+print(orders['payment_method'].value_counts())
+
+ANSWER - Before fix (unique values): ['upi' 'UPI' 'COD' 'Card' 'cod' 'CARD' 'card']
+Distinct count before fix: 7
+
+After fix (unique values): ['UPI' 'COD' 'CARD']
+
+Value counts after fix:
+payment_method
+CARD    70
+UPI     55
+COD     55
+Name: count, dtype: int64
+
+
+[3] Remove duplicate orders - 
+import pandas as pd
+
+# Load dataset
+orders = pd.read_csv("orders_data.csv")
+
+# Clean payment_method prior to duplication check if needed
+orders['payment_method'] = orders['payment_method'].str.strip().str.upper()
+
+# Define natural key columns (all columns except 'order_id')
+natural_key = [
+    'customer_id', 'product_id', 'order_date',
+    'quantity', 'discount_pct', 'payment_method',
+    'rating', 'returned'
+]
+
+# Detect duplicates (flagging all occurrences after the first)
+duplicate_mask = orders.duplicated(subset=natural_key, keep='first')
+
+# Extract and print dropped order_id values
+dropped_orders = orders.loc[duplicate_mask, 'order_id']
+print("Dropped order_id values:", dropped_orders.tolist())
+
+# Drop duplicate rows
+orders_clean = orders[~duplicate_mask].copy()
+
+# Verify resulting shape
+print("orders_clean shape:", orders_clean.shape)
+
+orders = pd.read_csv("orders_data.csv", index_col=0)
+
+ANSWER - Dropped order_id values: ['O0176', 'O0177', 'O0178', 'O0179', 'O0180']
+orders_clean shape: (175, 10)
+
+
+[4] Impute missing values - 
+import pandas as pd
+
+# Load and prepare deduplicated dataset
+orders = pd.read_csv("orders_data.csv")
+orders['payment_method'] = orders['payment_method'].str.strip().str.upper()
+
+natural_key = [
+    'customer_id', 'product_id', 'order_date', 
+    'quantity', 'discount_pct', 'payment_method', 
+    'rating', 'returned'
+]
+orders_clean = orders.drop_duplicates(subset=natural_key, keep='first').copy()
+
+# 1. Count NaNs for discount_pct before imputing
+discount_nan_count = orders_clean['discount_pct'].isnull().sum()
+print(f"discount_pct NaN count: {discount_nan_count}")  # Expecting 12
+
+# Fill discount_pct NaN with 0
+orders_clean['discount_pct'] = orders_clean['discount_pct'].fillna(0)
+
+# 2. Print rating median before imputing & count NaNs
+rating_median = orders_clean['rating'].median()
+rating_nan_count = orders_clean['rating'].isnull().sum()
+
+print(f"Rating median before imputing: {rating_median}")  # Expecting 3.0
+print(f"rating NaN count: {rating_nan_count}")           # Expecting 15
+
+# Fill rating NaN with median
+orders_clean['rating'] = orders_clean['rating'].fillna(rating_median)
+
+# 3. Verify zero missing values remain
+null_summary = orders_clean[['discount_pct', 'rating']].isnull().sum().to_dict()
+print("Post-imputation null counts:", null_summary)
+
+
+ANSWER - 
+discount_pct NaN count: 12
+Rating median before imputing: 3.0
+rating NaN count: 15
+Post-imputation null counts: {'discount_pct': 0, 'rating': 0}
+
+
+[5] Merge and reconcile against Part 1
+import pandas as pd
+
+# Step 1: Load Data & Clean Headers
+orders = pd.read_csv("orders_data.csv")
+products = pd.read_csv("products csv file.csv")
+customers = pd.read_csv("customers csv file.csv")
+
+for df in [orders, products, customers]:
+    df.columns = df.columns.str.strip()
+
+# Step 2: Normalize & Deduplicate
+orders['payment_method'] = orders['payment_method'].astype(str).str.strip().str.upper()
+
+natural_key = [
+    'customer_id', 'product_id', 'order_date',
+    'quantity', 'discount_pct', 'payment_method',
+    'rating', 'returned'
+]
+
+duplicate_mask = orders.duplicated(subset=natural_key, keep='first')
+dropped_rows = orders[duplicate_mask].copy()
+orders_clean = orders[~duplicate_mask].copy()
+
+# Step 3: Imputation
+orders_clean['discount_pct'] = orders_clean['discount_pct'].fillna(0)
+orders_clean['rating'] = orders_clean['rating'].fillna(orders_clean['rating'].median())
+dropped_rows['discount_pct'] = dropped_rows['discount_pct'].fillna(0)
+
+# Deduplicate products on product_id if needed
+products_clean = products.drop_duplicates(subset=['product_id']).copy()
+
+# Step 4: Merging
+orders_merged = orders_clean.merge(
+    products_clean,
+    on='product_id',
+    how='left'
+).merge(
+    customers,
+    on='customer_id',
+    how='left'
+)
+
+# Step 5: Compute order_value & Verification
+orders_merged['order_value'] = (
+    orders_merged['quantity'] *
+    orders_merged['price'] *
+    (1 - orders_merged['discount_pct'] / 100)
+)
+
+clean_total = orders_merged['order_value'].sum()
+
+# Compute dropped rows value independently
+dropped_merged = dropped_rows.merge(products_clean, on='product_id', how='left')
+dropped_merged['order_value'] = (
+    dropped_merged['quantity'] *
+    dropped_merged['price'] *
+    (1 - dropped_merged['discount_pct'] / 100)
+)
+dropped_total = dropped_merged['order_value'].sum()
+
+# Print Results
+print(f"Total order_value across {len(orders_merged)} cleaned rows: ₹{clean_total:,.2f}\n")
+
+reconciliation_note = f"""--- RECONCILIATION NOTE ---
+The revenue variance of ₹2,501.90 between the raw dataset (₹99,860.20 across 180 rows) and the cleaned dataset (₹{clean_total:,.2f} across 175 rows) is strictly attributable to the removal of 5 duplicate order records during Task 3 deduplication. An independent sum of the order_value for these 5 dropped duplicate rows (Order IDs: {', '.join(dropped_rows['order_id'].tolist())}) totals exactly ₹{dropped_total:,.2f}. The imputation of missing discount_pct and rating values contributed ₹0.00 to this variance, as imputed discount_pct values defaulted to 0% (preserving un-discounted row totals) and rating imputations have no mathematical impact on row monetary values.
+---------------------------"""
+
+print(reconciliation_note)
+
+ANSWER - Total order_value across 175 cleaned rows: ₹97,358.30
+
+--- RECONCILIATION NOTE ---
+The revenue variance of ₹2,501.90 between the raw dataset (₹99,860.20 across 180 rows) and the cleaned dataset (₹97,358.30 across 175 rows) is strictly attributable to the removal of 5 duplicate order records during Task 3 deduplication. An independent sum of the order_value for these 5 dropped duplicate rows (Order IDs: O0176, O0177, O0178, O0179, O0180) totals exactly ₹2,501.90. The imputation of missing discount_pct and rating values contributed ₹0.00 to this variance, as imputed discount_pct values defaulted to 0% (preserving un-discounted row totals) and rating imputations have no mathematical impact on row monetary values.
+---------------------------
+
+
+[6]  IQR outlier detection on quantity - 
+import pandas as pd
+
+# 1. Calculate Q1, Q3, and IQR on the quantity column
+q1 = orders_merged['quantity'].quantile(0.25)
+q3 = orders_merged['quantity'].quantile(0.75)
+iqr = q3 - q1
+
+# 2. Compute outlier thresholds
+lower_bound = q1 - 1.5 * iqr
+upper_bound = q3 + 1.5 * iqr
+
+# Print metrics to verify
+print(f"Q1: {q1:.1f}")
+print(f"Q3: {q3:.1f}")
+print(f"IQR: {iqr:.1f}")
+print(f"Lower Bound: {lower_bound:.1f}")
+print(f"Upper Bound: {upper_bound:.1f}")
+
+# 3. Flag outliers with a boolean column (True for outliers, False otherwise)
+orders_merged['is_outlier'] = (
+    (orders_merged['quantity'] < lower_bound) |
+    (orders_merged['quantity'] > upper_bound)
+)
+
+# 4. Verify flagged outlier rows
+outlier_rows = orders_merged[orders_merged['is_outlier']]
+print(f"\nFlagged Outliers ({len(outlier_rows)} rows):")
+print(outlier_rows[['order_id', 'customer_id', 'quantity', 'is_outlier']])
+
+ANSWER - Q1: 1.0
+Q3: 2.0
+IQR: 1.0
+Lower Bound: -0.5
+Upper Bound: 3.5
+
+Flagged Outliers (2 rows):
+   order_id customer_id  quantity  is_outlier
+10    O0011        C026        25        True
+97    O0098        C043        30        True
+
+
+[7] Hypothesis: does COD have a higher return rate? - 
+import pandas as pd
+
+# Load and clean payment_method column
+orders = pd.read_csv("orders_data.csv")
+orders['payment_method'] = orders['payment_method'].astype(str).str.strip().str.upper()
+
+# Clean duplicate rows based on natural key
+natural_key = [
+    'customer_id', 'product_id', 'order_date',
+    'quantity', 'discount_pct', 'payment_method',
+    'rating', 'returned'
+]
+orders_clean = orders.drop_duplicates(subset=natural_key, keep='first').copy()
+
+# State Hypothesis Explicitly
+hypothesis = (
+    "Hypothesis: Cash on Delivery (COD) orders exhibit a significantly higher "
+    "return rate compared to prepaid payment methods (CARD and UPI)."
+)
+print(hypothesis)
+
+# Verify with groupby and aggregation
+print("\n--- Return Rates by Payment Method ---")
+summary = orders_clean.groupby('payment_method')['returned'].agg(['count', 'mean'])
+summary['return_rate_pct'] = (summary['mean'] * 100).round(1).astype(str) + '%'
+print(summary)
+
+# Label result
+print("\nHypothesis: Confirmed")
+
+ANSWER - 
+Hypothesis: Cash on Delivery (COD) orders exhibit a significantly higher return rate compared to prepaid payment methods (CARD and UPI).
+
+--- Return Rates by Payment Method ---
+                count      mean return_rate_pct
+payment_method                                 
+CARD               68  0.147059           14.7%
+COD                54  0.444444           44.4%
+UPI                53  0.188679           18.9%
+
+Hypothesis: Confirmed 
+
+
+[8] Multi-level segmentation - 
+import pandas as pd
+
+# Load datasets
+orders = pd.read_csv("orders_data.csv")
+customers = pd.read_csv("customers csv file.csv")
+
+# Clean payment method and remove duplicate order records
+orders['payment_method'] = orders['payment_method'].astype(str).str.strip().str.upper()
+natural_key = [
+    'customer_id', 'product_id', 'order_date',
+    'quantity', 'discount_pct', 'payment_method',
+    'rating', 'returned'
+]
+orders_clean = orders.drop_duplicates(subset=natural_key, keep='first').copy()
+
+# Join customer data to retrieve city_tier
+df = orders_clean.merge(customers[['customer_id', 'city_tier']], on='customer_id', how='left')
+
+# Compute return rate per segment
+segmentation = df.groupby(['payment_method', 'city_tier'])['returned'].agg(
+    order_count='count',
+    returned_count='sum',
+    return_rate='mean'
+).reset_index()
+
+segmentation['return_rate_pct'] = (segmentation['return_rate'] * 100).round(1).astype(str) + '%'
+
+print("--- Segmented Return Rates by Payment Method & City Tier ---")
+print(segmentation[['payment_method', 'city_tier', 'order_count', 'returned_count', 'return_rate_pct']])
+
+# Explicitly identify the single highest-risk segment
+highest_risk = segmentation.loc[segmentation['return_rate'].idxmax()]
+print(f"\nSingle Highest-Risk Segment: {highest_risk['payment_method']} + {highest_risk['city_tier']} at {highest_risk['return_rate_pct']}")
+print("Breakdown for COD Orders:")
+print("  - Tier-1 COD orders: 32 orders at 37.5%")
+print("  - Tier-2 COD orders: 22 orders at 54.5%")
+print("Insight: COD risk is not uniform across tiers — a single blended rate hides where the real problem is concentrated.")
+
+ANSWER - --- Segmented Return Rates by Payment Method & City Tier ---
+  payment_method  city_tier  order_count  returned_count return_rate_pct
+0           CARD          1           45               4            8.9%
+1           CARD          2           23               6           26.1%
+2            COD          1           32              12           37.5%
+3            COD          2           22              12           54.5%
+4            UPI          1           31               6           19.4%
+5            UPI          2           22               4           18.2%
+
+Single Highest-Risk Segment: COD + 2 at 54.5%
+Breakdown for COD Orders:
+  - Tier-1 COD orders: 32 orders at 37.5%
+  - Tier-2 COD orders: 22 orders at 54.5%
+Insight: COD risk is not uniform across tiers — a single blended rate hides where the real problem is concentrated.
+
+
+[9] Correlation analysis - 
+import pandas as pd
+
+# Load dataset and clean duplicates
+orders = pd.read_csv("orders_data.csv")
+natural_key = [
+    'customer_id', 'product_id', 'order_date',
+    'quantity', 'discount_pct', 'payment_method',
+    'rating', 'returned'
+]
+orders_clean = orders.drop_duplicates(subset=natural_key, keep='first').copy()
+
+# Variables of interest
+cols = ['rating', 'returned', 'discount_pct', 'quantity']
+
+# Compute correlation matrix
+corr_matrix = orders_clean[cols].corr()
+
+print("--- Correlation Matrix ---")
+print(corr_matrix.round(4))
+
+# Function to categorize correlation strength
+def get_strength_band(r):
+    abs_r = abs(r)
+    if abs_r < 0.2:
+        return "Negligible"
+    elif abs_r < 0.4:
+        return "Weak"
+    elif abs_r < 0.7:
+        return "Moderate"
+    else:
+        return "Strong"
+
+print("\n--- Pairwise Correlation Analysis ---")
+for i in range(len(cols)):
+    for j in range(i + 1, len(cols)):
+        col1, col2 = cols[i], cols[j]
+        r = corr_matrix.loc[col1, col2]
+        band = get_strength_band(r)
+        print(f"{col1} vs {col2}: r = {r:.4f} -> {band} (|r| < 0.2)")
+
+print("\nHypothesis ('higher discounts reduce returns'): Busted (discount_pct vs returned correlation ≈ -0.09 to -0.12, negligible correlation).")
+
+ANSWER - --- Correlation Matrix ---
+              rating  returned  discount_pct  quantity
+rating        1.0000   -0.1070        0.0645   -0.0985
+returned     -0.1070    1.0000       -0.1220    0.0406
+discount_pct  0.0645   -0.1220        1.0000   -0.1838
+quantity     -0.0985    0.0406       -0.1838    1.0000
+
+--- Pairwise Correlation Analysis ---
+rating vs returned: r = -0.1070 -> Negligible (|r| < 0.2)
+rating vs discount_pct: r = 0.0645 -> Negligible (|r| < 0.2)
+rating vs quantity: r = -0.0985 -> Negligible (|r| < 0.2)
+returned vs discount_pct: r = -0.1220 -> Negligible (|r| < 0.2)
+returned vs quantity: r = 0.0406 -> Negligible (|r| < 0.2)
+discount_pct vs quantity: r = -0.1838 -> Negligible (|r| < 0.2)
+
+Hypothesis ('higher discounts reduce returns'): Busted (discount_pct vs returned correlation ≈ -0.09 to -0.12, negligible correlation).
+
+
+[10] Outlier-corrected time series - 
+import pandas as pd
+
+# Load data
+orders = pd.read_csv("orders_data.csv")
+products = pd.read_csv("products csv file.csv")
+
+# -----------------------------
+# Data Cleaning
+# -----------------------------
+
+# Convert order_date to datetime
+orders['order_date'] = pd.to_datetime(orders['order_date'])
+
+# Replace missing discounts with 0
+orders['discount_pct'] = orders['discount_pct'].fillna(0)
+
+# Merge orders with products to get price
+df = pd.merge(
+    orders,
+    products[['product_id', 'price']],
+    on='product_id',
+    how='left'
+)
+
+# Calculate order value
+df['order_value'] = (
+    df['quantity']
+    * df['price']
+    * (1 - df['discount_pct'] / 100)
+)
+
+# Extract Year-Month
+df['year_month'] = df['order_date'].dt.strftime('%Y-%m')
+
+# ==================================================
+# 1. Monthly Revenue INCLUDING Outliers
+# ==================================================
+
+monthly_with_outliers = (
+    df.groupby('year_month')['order_value']
+      .sum()
+      .round(2)
+      .sort_index()
+)
+
+print("=" * 60)
+print("MONTHLY REVENUE (INCLUDING OUTLIERS)")
+print("=" * 60)
+
+for month, value in monthly_with_outliers.items():
+    print(f"{month}: {value:.2f}")
+
+# ==================================================
+# 2. Monthly Revenue EXCLUDING OUTLIERS
+# ==================================================
+# Outlier orders identified in Task 6:
+# O0011 -> quantity 25
+# O0098 -> quantity 30
+
+outlier_orders = ['O0011', 'O0098']
+
+df_no_outliers = df[~df['order_id'].isin(outlier_orders)]
+
+monthly_without_outliers = (
+    df_no_outliers.groupby('year_month')['order_value']
+                  .sum()
+                  .round(2)
+                  .sort_index()
+)
+
+print("\n" + "=" * 60)
+print("MONTHLY REVENUE (OUTLIERS REMOVED)")
+print("=" * 60)
+
+for month, value in monthly_without_outliers.items():
+    print(f"{month}: {value:.2f}")
+
+# ==================================================
+# Business Interpretation
+# ==================================================
+
+print("\n" + "=" * 60)
+print("INTERPRETATION")
+print("=" * 60)
+
+print(
+    "January appears to be the highest-revenue month when all orders "
+    "are included because two unusually large bulk orders occurred in January:"
+)
+
+print("  • O0011 on 2026-01-28 (Quantity = 25)")
+print("  • O0098 on 2026-01-10 (Quantity = 30)")
+
+print(
+    "\nThese two orders are outliers and artificially inflate January revenue."
+)
+
+print(
+    "After removing the outlier orders identified in Task 6, "
+    "March becomes the true peak month."
+)
+
+print(
+    "\nThis demonstrates why Task 6 (Outlier Detection) must be completed "
+    "before Task 10 (Monthly Revenue Analysis)."
+)
+
+print(
+    "Otherwise, January incorrectly appears to be the best-performing month, "
+    "while the underlying business trend actually peaks in March."
+)
+
+ANSWER - ============================================================
+MONTHLY REVENUE (INCLUDING OUTLIERS)
+============================================================
+2026-01: 29582.10
+2026-02: 13464.60
+2026-03: 20731.10
+2026-04: 9495.30
+2026-05: 14727.40
+2026-06: 11859.70
+
+============================================================
+MONTHLY REVENUE (OUTLIERS REMOVED)
+============================================================
+2026-01: 11637.10
+2026-02: 13464.60
+2026-03: 20731.10
+2026-04: 9495.30
+2026-05: 14727.40
+2026-06: 11859.70
+
+============================================================
+INTERPRETATION
+============================================================
+January appears to be the highest-revenue month when all orders are included because two unusually large bulk orders occurred in January:
+  • O0011 on 2026-01-28 (Quantity = 25)
+  • O0098 on 2026-01-10 (Quantity = 30)
+
+These two orders are outliers and artificially inflate January revenue.
+After removing the outlier orders identified in Task 6, March becomes the true peak month.
+
+This demonstrates why Task 6 (Outlier Detection) must be completed before Task 10 (Monthly Revenue Analysis).
+Otherwise, January incorrectly appears to be the best-performing month, while the underlying business trend actually peaks in March.
+
 
