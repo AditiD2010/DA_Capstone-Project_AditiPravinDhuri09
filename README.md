@@ -35,53 +35,45 @@ The main objective is to demonstrate an end-to-end analytical approach to a reta
 
 
  ## Tools and technologies
- -----------------------------------------------------------------------
-  Tool                                Use in this project
-  ----------------------------------- -----------------------------------
-  SQL / MySQL-compatible database     Relational tables, joins,
+ 
+  SQL / MySQL-compatible database -     Relational tables, joins,
                                       aggregations, segmentation, and
                                       reports
 
-  Python                              Data preparation, calculations,
+  Python -                             Data preparation, calculations,
                                       quality checks, and narrative logic
 
-  Pandas                              Data loading, cleaning,
+  Pandas -                              Data loading, cleaning,
                                       transformation, and exploratory
                                       analysis
 
-  NumPy                               Numerical operations where required
+  NumPy -                               Numerical operations where required
 
-  Matplotlib                          Visualization
+  Matplotlib -                         Visualization
 
-  Jupyter Notebook / Google Colab     Interactive analysis and
+  Jupyter Notebook / Google Colab -     Interactive analysis and
                                       experimentation
 
-  Google Gemini API (`google-genai`)  Optional AI-generated SCR narrative
+  Google Gemini API (`google-genai`) -  Optional AI-generated SCR narrative
 
-  JSON                                Structured findings and narrative
+  JSON -                               Structured findings and narrative
                                       output
 
 
 # Repository Structure
 <repo>/
 ├── README.md
+├── requirements.txt
 ├── sql/
-│   ├── schema.sql
-│   ├── seed_data.sql
-│   └── reports.sql
+│   schema · seed_data · reports
 ├── data/
-│   ├── customers.csv
-│   ├── products.csv
-│   └── orders.csv
+│   customers · products · orders
 ├── analysis/
-│   ├── clean_and_eda.py
-│   └── visualize.py
-├── visualizations/
-│   ├── return_rate_by_payment.png
-│   └── monthly_revenue_trend.png
+│   clean_and_eda · visualize
+├── visualizations/   (2 PNGs)
 └── narrator/
-    ├── findings.json
-    └── generate_narrative.py
+    findings.json
+    generate_narrative.py
 
    
 ## Workflow
